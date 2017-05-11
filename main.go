@@ -20,6 +20,7 @@ const (
 )
 
 var ch = make(chan int, MAX_THREAD)
+var m = make(map[string]string)
 
 func read(conn net.Conn) (string, error) {
     readBytes := make([]byte, 1)
@@ -74,19 +75,35 @@ func handleConn(conn net.Conn) {
         }
         printServerLog("Received request msg: %s", reqStr)
         cmdBytes := []byte(reqStr)
+        reqLen   := len(reqStr) - 1
         p1 := bytes.IndexByte(cmdBytes, ' ')
         if (p1 > -1) {
-            cmd := make([]byte, p1 + 1)
+            cmd := make([]byte, p1)
             _ = copy(cmd, cmdBytes[:p1])
-            printServerLog("Info: %s", string(cmd))
+            switch {
+            case string(cmd) == "get":
+                key := make([]byte, reqLen - p1 - 1)
+                _ = copy(key, cmdBytes[p1 + 1:])
+                value := m[string(key)]
+                printServerLog("The value of the key: %s", value)
+                _, err = write(conn, value)
+                if err != nil {
+                    printServerLog("Write Error: %s", err)
+                }
+            case string(cmd) == "set":
+                p2 := bytes.IndexByte(cmdBytes[p1 + 1:], ' ')
+                key := make([]byte, p2)
+                _ = copy(key, cmdBytes[p1 + 1:p1 + p2 + 1])
+                value := make([]byte, reqLen - p1 - p2 - 1)
+                _ = copy(value, cmdBytes[p1 + p2 + 2:])
+                m[string(key)] = string(value)
+                _, err = write(conn, "true")
+                if err != nil {
+                    printServerLog("Write Error: %s", err)
+                }
+            default:
+            }
         }
-
-        /**
-        _, err = write(conn, "Received your msg")
-        if err != nil {
-            printServerLog("Write Error: %s", err)
-        }
-        **/
     }
 }
 
